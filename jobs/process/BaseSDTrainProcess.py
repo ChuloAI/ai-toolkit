@@ -2337,7 +2337,17 @@ class BaseSDTrainProcess(BaseTrainProcess):
                 # update various steps
                 self.step_num = step + 1
                 self.grad_accumulation_step += 1
-                self.end_step_hook()
+                try:
+                    self.end_step_hook()
+                except Exception as e:
+                    # If end_step_hook raises an exception (e.g., from maybe_stop()),
+                    # we need to handle it gracefully to allow proper cleanup
+                    if "Job stopped" in str(e) or "Job returning to queue" in str(e):
+                        # This is an intentional stop, break out of the loop
+                        break
+                    else:
+                        # Unexpected exception, re-raise it
+                        raise
 
 
         ###################################################################

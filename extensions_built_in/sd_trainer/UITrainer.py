@@ -30,6 +30,10 @@ class UITrainer(SDTrainer):
         self.thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         # Track all async tasks
         self._async_tasks = []
+        # Track startup time to ignore stop checks during initial grace period
+        # This prevents race conditions where stop flag is read before it's cleared
+        self._startup_time = time.time()
+        self._startup_grace_period = 5.0  # 5 seconds grace period after startup
         # Initialize the status
         self._run_async_operation(self._update_status("running", "Starting"))
         self._stop_watcher_started = False
@@ -106,24 +110,55 @@ class UITrainer(SDTrainer):
         return conn
 
     def should_stop(self):
+        # During startup grace period, ignore stop checks to prevent race conditions
+        # This allows the database time to update stop flags before we check them
+        if time.time() - self._startup_time < self._startup_grace_period:
+            return False
+        
         def _check_stop():
-            with self._db_connect() as conn:
-                cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT stop FROM Job WHERE id = ?", (self.job_id,))
-                stop = cursor.fetchone()
-                return False if stop is None else stop[0] == 1
+            # Retry logic to handle potential SQLite locking issues
+            max_retries = 3
+            retry_delay = 0.1
+            for attempt in range(max_retries):
+                try:
+                    with self._db_connect() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            "SELECT stop FROM Job WHERE id = ?", (self.job_id,))
+                        stop = cursor.fetchone()
+                        return False if stop is None else stop[0] == 1
+                except sqlite3.OperationalError as e:
+                    if "database is locked" in str(e).lower() and attempt < max_retries - 1:
+                        time.sleep(retry_delay * (attempt + 1))
+                        continue
+                    raise
+            return False
 
         return _check_stop()
     
     def should_return_to_queue(self):
+        # During startup grace period, ignore return_to_queue checks
+        if time.time() - self._startup_time < self._startup_grace_period:
+            return False
+        
         def _check_return_to_queue():
-            with self._db_connect() as conn:
-                cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT return_to_queue FROM Job WHERE id = ?", (self.job_id,))
-                return_to_queue = cursor.fetchone()
-                return False if return_to_queue is None else return_to_queue[0] == 1
+            # Retry logic to handle potential SQLite locking issues
+            max_retries = 3
+            retry_delay = 0.1
+            for attempt in range(max_retries):
+                try:
+                    with self._db_connect() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            "SELECT return_to_queue FROM Job WHERE id = ?", (self.job_id,))
+                        return_to_queue = cursor.fetchone()
+                        return False if return_to_queue is None else return_to_queue[0] == 1
+                except sqlite3.OperationalError as e:
+                    if "database is locked" in str(e).lower() and attempt < max_retries - 1:
+                        time.sleep(retry_delay * (attempt + 1))
+                        continue
+                    raise
+            return False
 
         return _check_return_to_queue()
 
@@ -259,6 +294,9 @@ class UITrainer(SDTrainer):
         self.update_status("running", "Loading dataset")
 
     def hook_before_train_loop(self):
+        # Reset grace period right before training loop starts
+        # This ensures we have a fresh grace period even when resuming from a checkpoint
+        self._startup_time = time.time()
         super().hook_before_train_loop()
         self.maybe_stop()
         self.update_step()

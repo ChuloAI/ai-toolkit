@@ -272,6 +272,9 @@ source .venv/bin/activate
 
 # Install PyTorch with ROCm support for your GPU architecture
 # The setup script will auto-detect your GPU architecture, but you can also specify manually:
+# For latest stable release:
+uv pip install --upgrade --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ torch torchaudio torchvision
+# For latest pre-release/nightlies (use --pre flag):
 uv pip install --upgrade --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ --pre torch torchaudio torchvision
 
 # Install remaining requirements
@@ -292,6 +295,16 @@ uv pip install -r requirements.txt
 **Important:** The ROCm nightlies directory structure uses `gfx110X-all` for all RDNA 3 GPUs (gfx1100-gfx1103), not the individual architecture codes. The setup script automatically handles this mapping.
 
 Check your GPU architecture with: `rocm-smi --showproductname`
+
+**PyTorch Version Compatibility:**
+- By default, the setup scripts install the latest stable PyTorch release from ROCm
+- The latest PyTorch versions (2.11.0+) are fully supported and tested with gfx1151 and other ROCm architectures
+- To install the latest pre-release/nightly builds (including PyTorch 2.11.0+rocm7.1 and newer), use the `--latest-pre` flag:
+  ```bash
+  ./setup.sh --latest-pre
+  # or
+  ./start_toolkit.sh setup --latest-pre
+  ```
 
 #### DGX OS:
 

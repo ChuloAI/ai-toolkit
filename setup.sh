@@ -31,6 +31,23 @@ print_info "AI Toolkit Setup Script"
 print_info "======================"
 echo ""
 
+# Parse command line arguments
+USE_LATEST_PRE=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --latest-pre)
+            USE_LATEST_PRE=true
+            shift
+            ;;
+        *)
+            print_error "Unknown option: $1"
+            print_info "Usage: $0 [--latest-pre]"
+            print_info "  --latest-pre    Install latest PyTorch pre-release/nightlies (default: use stable releases)"
+            exit 1
+            ;;
+    esac
+done
+
 # Check if we're in the right directory
 if [ ! -f "run.py" ] || [ ! -f "requirements.txt" ]; then
     print_error "Please run this script from the ai-toolkit root directory"
@@ -157,10 +174,20 @@ if command -v rocm-smi &> /dev/null; then
     
     # Install PyTorch with ROCm
     print_info "Installing PyTorch with ROCm support..."
-    if command -v uv &> /dev/null; then
-        uv pip install --upgrade --index-url "https://rocm.nightlies.amd.com/v2/${ROCM_ARCH}/" --pre torch torchaudio torchvision
+    if [ "$USE_LATEST_PRE" = true ]; then
+        print_info "Installing latest PyTorch pre-release/nightlies (--latest-pre flag set)"
+        if command -v uv &> /dev/null; then
+            uv pip install --upgrade --index-url "https://rocm.nightlies.amd.com/v2/${ROCM_ARCH}/" --pre torch torchaudio torchvision
+        else
+            pip install --upgrade --index-url "https://rocm.nightlies.amd.com/v2/${ROCM_ARCH}/" --pre torch torchaudio torchvision
+        fi
     else
-        pip install --upgrade --index-url "https://rocm.nightlies.amd.com/v2/${ROCM_ARCH}/" --pre torch torchaudio torchvision
+        print_info "Installing latest stable PyTorch release (use --latest-pre flag for pre-releases)"
+        if command -v uv &> /dev/null; then
+            uv pip install --upgrade --index-url "https://rocm.nightlies.amd.com/v2/${ROCM_ARCH}/" torch torchaudio torchvision
+        else
+            pip install --upgrade --index-url "https://rocm.nightlies.amd.com/v2/${ROCM_ARCH}/" torch torchaudio torchvision
+        fi
     fi
 else
     print_info "CUDA/NVIDIA detected or no GPU. Installing PyTorch with CUDA support..."

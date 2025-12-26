@@ -23,6 +23,23 @@ Write-Info "AI Toolkit Setup Script"
 Write-Info "======================"
 Write-Host ""
 
+# Parse command line arguments
+$USE_LATEST_PRE = $false
+$argsList = $args
+for ($i = 0; $i -lt $argsList.Length; $i++) {
+    switch ($argsList[$i]) {
+        "--latest-pre" {
+            $USE_LATEST_PRE = $true
+        }
+        default {
+            Write-Error "Unknown option: $($argsList[$i])"
+            Write-Info "Usage: .\setup.ps1 [--latest-pre]"
+            Write-Info "  --latest-pre    Install latest PyTorch pre-release/nightlies (default: use stable releases)"
+            exit 1
+        }
+    }
+}
+
 # Check if we're in the right directory
 if (-not (Test-Path "run.py") -or -not (Test-Path "requirements.txt")) {
     Write-Error "Please run this script from the ai-toolkit root directory"
@@ -153,11 +170,23 @@ if ($hasRocm) {
         # Install PyTorch with ROCm
         Write-Info "Installing PyTorch with ROCm support..."
         $indexUrl = "https://rocm.nightlies.amd.com/v2/$($env:PYTORCH_ROCM_ARCH)/"
-        & $pythonCmd -m pip install --upgrade --index-url $indexUrl --pre torch torchaudio torchvision
+        if ($USE_LATEST_PRE) {
+            Write-Info "Installing latest PyTorch pre-release/nightlies (--latest-pre flag set)"
+            & $pythonCmd -m pip install --upgrade --index-url $indexUrl --pre torch torchaudio torchvision
+        } else {
+            Write-Info "Installing latest stable PyTorch release (use --latest-pre flag for pre-releases)"
+            & $pythonCmd -m pip install --upgrade --index-url $indexUrl torch torchaudio torchvision
+        }
     } else {
         Write-Info "Using GPU architecture from environment: $env:PYTORCH_ROCM_ARCH"
         $indexUrl = "https://rocm.nightlies.amd.com/v2/$($env:PYTORCH_ROCM_ARCH)/"
-        & $pythonCmd -m pip install --upgrade --index-url $indexUrl --pre torch torchaudio torchvision
+        if ($USE_LATEST_PRE) {
+            Write-Info "Installing latest PyTorch pre-release/nightlies (--latest-pre flag set)"
+            & $pythonCmd -m pip install --upgrade --index-url $indexUrl --pre torch torchaudio torchvision
+        } else {
+            Write-Info "Installing latest stable PyTorch release (use --latest-pre flag for pre-releases)"
+            & $pythonCmd -m pip install --upgrade --index-url $indexUrl torch torchaudio torchvision
+        }
     }
 } else {
     Write-Info "Installing PyTorch with CUDA support..."

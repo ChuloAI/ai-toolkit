@@ -87,6 +87,9 @@ show_usage() {
     echo "UI Options:"
     echo "  -p, --port PORT                          - Port for web UI (default: 8675)"
     echo ""
+    echo "Setup Options:"
+    echo "  --latest-pre                             - Install latest PyTorch pre-release/nightlies (for setup mode)"
+    echo ""
     echo "Examples:"
     echo "  $0 train config/examples/train_lora_wan22_14b_24gb.yaml"
     echo "  $0 train config/my_config.yaml -r -n my_training_run"
@@ -354,6 +357,9 @@ parse_args() {
     # Initialize UI_DEV_MODE flag
     UI_DEV_MODE=false
     
+    # Initialize flags
+    USE_LATEST_PRE=false
+    
     # Parse remaining options and collect config files
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -379,6 +385,10 @@ parse_args() {
                 else
                     print_warning "--dev flag is only valid for 'ui' mode"
                 fi
+                shift
+                ;;
+            --latest-pre)
+                USE_LATEST_PRE=true
                 shift
                 ;;
             *)
@@ -506,10 +516,21 @@ main() {
                         ROCM_ARCH=${ROCM_ARCH:-gfx1151}
                     fi
                     
-                    if command -v uv &> /dev/null; then
-                        uv pip install --upgrade --index-url "https://rocm.nightlies.amd.com/v2/${ROCM_ARCH}/" --pre torch torchaudio torchvision
+                    # Install PyTorch with ROCm
+                    if [ "$USE_LATEST_PRE" = true ]; then
+                        print_info "Installing latest PyTorch pre-release/nightlies (--latest-pre flag set)"
+                        if command -v uv &> /dev/null; then
+                            uv pip install --upgrade --index-url "https://rocm.nightlies.amd.com/v2/${ROCM_ARCH}/" --pre torch torchaudio torchvision
+                        else
+                            pip install --upgrade --index-url "https://rocm.nightlies.amd.com/v2/${ROCM_ARCH}/" --pre torch torchaudio torchvision
+                        fi
                     else
-                        pip install --upgrade --index-url "https://rocm.nightlies.amd.com/v2/${ROCM_ARCH}/" --pre torch torchaudio torchvision
+                        print_info "Installing latest stable PyTorch release (use --latest-pre flag for pre-releases)"
+                        if command -v uv &> /dev/null; then
+                            uv pip install --upgrade --index-url "https://rocm.nightlies.amd.com/v2/${ROCM_ARCH}/" torch torchaudio torchvision
+                        else
+                            pip install --upgrade --index-url "https://rocm.nightlies.amd.com/v2/${ROCM_ARCH}/" torch torchaudio torchvision
+                        fi
                     fi
                 else
                     print_info "Installing PyTorch with CUDA support..."

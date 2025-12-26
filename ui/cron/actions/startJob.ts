@@ -203,14 +203,21 @@ export default async function startJob(jobID: string) {
     return;
   }
   // update job status to 'running', this will run sync so we don't start multiple jobs.
+  // Explicitly clear both stop and return_to_queue flags atomically to prevent race conditions
   await prisma.job.update({
     where: { id: jobID },
     data: {
       status: 'running',
       stop: false,
+      return_to_queue: false,
       info: 'Starting job...',
     },
   });
+  
+  // Small delay to ensure database transaction is committed before Python process starts
+  // This prevents race conditions where the Python process reads stale stop flag values
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
   // start and watch the job asynchronously so the cron can continue
   startAndWatchJob(job);
 }
